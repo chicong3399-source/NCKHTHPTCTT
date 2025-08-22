@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartPick – Tiêu dùng thông minh</title>
+    <!-- Thư viện Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Thư viện Chart.js để vẽ biểu đồ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts: Poppins cho font chữ hiện đại -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Các thư viện Firebase cho cơ sở dữ liệu -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, collection, addDoc, onSnapshot, query, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // Tạo các biến global để các script khác có thể sử dụng
+        window.firebase = {
+            initializeApp,
+            getAuth,
+            signInAnonymously,
+            signInWithCustomToken,
+            getFirestore,
+            doc,
+            getDoc,
+            setDoc,
+            collection,
+            addDoc,
+            onSnapshot,
+            query,
+            getDocs
+        };
+    </script>
+    <style>
+        body, h1, h2, h3, h4, h5, h6 {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f8f9fa;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+        .section-container {
+            min-height: 100vh;
+        }
+        nav a:hover {
+            transform: translateY(-2px);
+            transition: transform 0.2s ease-in-out;
+        }
+        .card {
+            transition: all 0.3s ease-in-out;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        .card.is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .quiz-btn {
+            transition: all 0.3s ease-in-out;
+            transform: scale(1);
+        }
+        .quiz-btn:hover {
+            transform: scale(1.05);
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+        .dismiss-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.5rem;
+            line-height: 1;
+            color: #b45309; /* Màu cam đậm */
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .dismiss-btn:hover {
+            opacity: 1;
+        }
+        /* CSS cho mô hình 3D */
+        #threed-container {
+            position: relative;
+            width: 100%;
+            height: 80vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
+        }
+        #threed-container canvas {
+            display: block;
+        }
+        .threed-ui-panel {
+            position: absolute;
+            top: 1rem;
+            text-align: center;
+            padding: 0.75rem 1.5rem;
+            background: rgba(255, 255, 255, 0.85);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Thanh điều hướng (Navigation Bar) -->
+    <nav class="bg-white shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center">
+            <a href="#" class="text-2xl font-bold text-gray-900">Nghiên Cứu</a>
+            <div class="mt-4 sm:mt-0 space-x-2 sm:space-x-4 flex justify-center overflow-x-auto whitespace-nowrap">
+                <a href="#home" class="text-gray-600 hover:text-blue-600 transition-colors duration-300 font-semibold">Trang chủ</a>
+                <a href="#foreword" class="text-gray-600 hover:text-blue-600 transition-colors duration-300 font-semibold">Lời nói đầu</a>
+                <a href="#abstract" class="text-gray-600 hover:text-blue-600 transition-colors duration-300 font-semibold">Tóm tắt</a>
+                <a href="#results" class="text-gray-600 hover:text-blue-600 transition-colors duration-300 font-semibold">Kết quả</a>
+                <a href="#guide" class="text-gray-600 hover:text-blue-600 transition-colors duration-300 font-semibold">Cẩm nang</a>
+                <a href="#3d-experience" class="text-gray-600 hover:text-blue-600 transition-colors duration-300 font-semibold">Trải nghiệm 3D</a>
+                <a href="#quiz" class="text-gray-600 hover:text-blue-600 transition-colors duration-300 font-semibold">Quizz</a>
+                <a href="#references" class="text-gray-600 hover:text-blue-600 transition-colors duration-300 font-semibold">Tài liệu tham khảo</a>
+                <a href="#acknowledgements" class="text-gray-600 hover:text-blue-600 transition-colors duration-300 font-semibold">Cảm ơn</a>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Banner thông báo bản thử nghiệm -->
+    <div id="trial-banner" class="bg-amber-100 text-amber-800 p-3 text-center text-sm sm:text-base font-semibold flex items-center justify-center">
+        <p>⚠️ Đây là bản thử nghiệm. Dự kiến hoàn thành vào tháng 10 năm 2025.</p>
+        <button id="dismiss-banner-btn" class="dismiss-btn ml-4">&times;</button>
+    </div>
+
+    <!-- Phần Trang chủ (Home) -->
+    <section id="home" class="section-container container mx-auto px-4 py-16 flex flex-col items-center justify-center bg-blue-50 rounded-lg shadow-lg my-8">
+        <div class="text-center max-w-4xl">
+            <h1 class="text-5xl font-extrabold text-blue-900 mb-4">SmartPick – Tiêu dùng thông minh</h1>
+            <h2 class="text-3xl font-bold text-gray-800 mb-4">"Phân tích tác động của thị giác trước sự phong phú của bao bì sản phẩm và thông điệp marketing đến định hướng tiêu dùng của học sinh THPT ở một số trường thuộc khu vực Phường Châu Đốc, Phường Vĩnh Tế, Phường Tân Châu và Xã Châu Phong."</h2>
+            <p class="text-lg text-gray-700 leading-relaxed">
+                Tác giả: Nguyễn Chí Công | Lớp: 12XH3 | Trường: THPT Châu Thị Tế
+            </p>
+        </div>
+        <!-- Video YouTube được thêm vào đây -->
+        <div class="mt-8 w-full max-w-2xl mx-auto rounded-lg overflow-hidden shadow-lg">
+            <iframe class="w-full aspect-video" src="https://www.youtube.com/embed/79yKgrrp48Y" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+        </div>
+    </section>
+
+    <!-- Phần Lời nói đầu (Foreword) -->
+    <section id="foreword" class="section-container container mx-auto px-4 py-16 my-8">
+        <div class="bg-white p-8 rounded-lg shadow-lg card">
+            <h2 class="text-3xl font-bold text-gray-900 mb-4">Lời nói đầu</h2>
+            <p class="text-gray-700 leading-relaxed">
+Trong bối cảnh thị trường tiêu dùng ngày càng đa dạng, các yếu tố thị giác từ bao bì sản phẩm và thông điệp marketing đóng vai trò then chốt trong việc thu hút và định hình hành vi mua sắm, đặc biệt là với lứa tuổi học sinh THPT. Đây là nhóm đối tượng năng động, dễ bị ảnh hưởng bởi xu hướng và các yếu tố cảm xúc.
+
+Tuy nhiên, tại các khu vực phường Châu Đốc, Vĩnh Tế, phường Tân Châu và xã Châu Phong, vẫn còn thiếu các nghiên cứu chuyên sâu về tác động cụ thể của các yếu tố này. Việc thiếu dữ liệu đã gây ra khó khăn cho phụ huynh và nhà trường trong việc định hướng tiêu dùng cho học sinh.
+
+Vì lý do đó, nghiên cứu này được thực hiện nhằm phân tích tác động của thị giác trước sự phong phú của bao bì sản phẩm và thông điệp marketing đến định hướng tiêu dùng của học sinh THPT tại các khu vực nêu trên. Kết quả nghiên cứu kỳ vọng sẽ cung cấp một cái nhìn toàn diện và thực tế, từ đó đưa ra các đề xuất hữu ích cho phụ huynh và nhà trường, góp phần giáo dục và thúc đẩy một thế hệ người tiêu dùng trẻ có ý thức và trách nhiệm hơn.            </p>
+        </div>
+    </section>
+
+    <!-- Phần Tóm tắt (Abstract) -->
+    <section id="abstract" class="section-container container mx-auto px-4 py-16 my-8">
+        <div class="bg-white p-8 rounded-lg shadow-lg card">
+            <h2 class="text-3xl font-bold text-gray-900 mb-4">Tóm tắt</h2>
+            <p class="text-gray-700 leading-relaxed">
+Trong bối cảnh thị trường tiêu dùng ngày càng đa dạng, các yếu tố thị giác từ bao bì sản phẩm và thông điệp marketing đóng vai trò then chốt trong việc định hình hành vi mua sắm của giới trẻ. Nghiên cứu này được thực hiện nhằm phân tích một cách có hệ thống mức độ ảnh hưởng của các yếu tố trên đến định hướng tiêu dùng của học sinh THPT tại các khu vực phường Châu Đốc, Vĩnh Tế, Tân Châu và xã Châu Phong.
+
+Sử dụng phương pháp khảo sát định lượng và định lượng, đề tài kỳ vọng sẽ làm rõ mối liên hệ giữa các yếu tố thị giác với quyết định mua sắm của học sinh. Kết quả nghiên cứu không chỉ cung cấp một cái nhìn thực tế về thói quen tiêu dùng của giới trẻ tại địa phương, mà còn là cơ sở để đưa ra các đề xuất thiết thực cho phụ huynh và nhà trường, nhằm giáo dục và định hướng học sinh trở thành những người tiêu dùng thông minh và có trách nhiệm.            </p>
+        </div>
+    </section>
+
+    <!-- Phần Kết quả khảo sát (Results) - Đã được cập nhật với biểu đồ -->
+    <section id="results" class="section-container container mx-auto px-4 py-16 my-8">
+        <div class="bg-white p-8 rounded-lg shadow-lg text-center card">
+            <h2 class="text-3xl font-bold text-gray-900 mb-8">Kết quả Nghiên cứu Định lượng</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-8">
+                Dưới đây là một số phân tích ban đầu. Biểu đồ sẽ được cập nhật với dữ liệu thực tế sau khi hoàn thành khảo sát vào tháng 10 năm 2025.
+            </p>
+            
+            <div class="grid md:grid-cols-2 gap-8 mt-8">
+                <div>
+                    <h3 class="text-xl font-semibold mb-4">Mức độ ảnh hưởng của các yếu tố thị giác</h3>
+                    <div class="chart-container mx-auto">
+                        <canvas id="visualImpactChart"></canvas>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-4">Tỷ lệ học sinh bị ảnh hưởng bởi Thông điệp</h3>
+                    <div class="chart-container mx-auto">
+                        <canvas id="marketingMessageChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <p class="text-gray-700 leading-relaxed mt-8 italic">
+                Các biểu đồ trên hiện đang hiển thị dữ liệu bằng 0 và sẽ được cập nhật sau.
+            </p>
+        </div>
+    </section>
+    
+    <!-- Phần Cẩm nang định hướng tiêu dùng - Đã được cập nhật thêm link -->
+    <section id="guide" class="section-container container mx-auto px-4 py-16 my-8">
+        <div class="bg-white p-8 rounded-lg shadow-lg card">
+            <h2 class="text-3xl font-bold text-gray-900 mb-4">Cẩm nang Định hướng Tiêu dùng Thông minh</h2>
+            <div class="text-center mb-8">
+                <a href="https://drive.google.com/file/d/1LhjmVUxPCUpideFYpq08YBpUOvjki-Ta/view?usp=drive_link" target="_blank" rel="noopener noreferrer" class="inline-block bg-blue-600 text-white px-6 py-3 rounded-full text-lg font-bold hover:bg-blue-700 transition-colors duration-300 shadow-md quiz-btn">
+                    NHẤN VÀY ĐÂY ĐỂ TẢI BỘ CẨM NANG ĐỊNH HƯỚNG TIÊU DÙNG
+                </a>
+            </div>
+            <div class="space-y-8">
+                <div class="guide-item">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">1. Phân biệt "Cần" và "Muốn"</h3>
+                    <p class="text-gray-700 leading-relaxed">
+                        Hãy tự hỏi: "Mình có thực sự cần sản phẩm này không?" trước khi mua sắm. Việc phân biệt rõ ràng giữa nhu cầu thiết yếu và mong muốn nhất thời sẽ giúp bạn tránh mua sắm lãng phí.
+                    </p>
+                </div>
+                <div class="guide-item">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">2. Đọc kỹ bao bì và thành phần</h3>
+                    <p class="text-gray-700 leading-relaxed">
+                        Đừng chỉ bị thu hút bởi vẻ ngoài bắt mắt. Hãy dành thời gian đọc nhãn mác, thành phần, và hạn sử dụng để đảm bảo sản phẩm an toàn và phù hợp với nhu cầu của bạn.
+                    </p>
+                </div>
+                <div class="guide-item">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">3. So sánh giá và chất lượng</h3>
+                    <p class="text-gray-700 leading-relaxed">
+                        Trước khi đưa ra quyết định, hãy tìm hiểu và so sánh giá cả, đánh giá chất lượng từ nhiều nguồn khác nhau. Sử dụng các ứng dụng so sánh giá để tìm được lựa chọn tối ưu nhất.
+                    </p>
+                </div>
+                <div class="guide-item">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">4. Lên kế hoạch chi tiêu</h3>
+                    <p class="text-gray-700 leading-relaxed">
+                        Quản lý tài chính cá nhân hiệu quả bằng cách lập danh sách những món đồ cần mua và đặt ra ngân sách cụ thể. Điều này giúp bạn kiểm soát chi tiêu và tránh bị "cháy túi".
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Phần Trải nghiệm 3D mới -->
+    <section id="3d-experience" class="section-container container mx-auto px-4 py-16 my-8">
+        <div class="bg-white p-8 rounded-lg shadow-lg text-center card">
+            <h2 class="text-3xl font-bold text-gray-900 mb-8">Trải nghiệm Lon Nước Dừa 3D</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-8">
+                Hãy cùng khám phá mô hình lon nước dừa "Coconut Bliss" với thiết kế mới!
+            </p>
+            <div id="threed-container" class="relative">
+                <div class="threed-ui-panel">
+                    <h3 class="text-xl font-bold text-gray-900">Lon Nước Dừa 360°</h3>
+                    <p class="text-md text-gray-700">Dùng chuột hoặc ngón tay để xoay mô hình!</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Phần Quizz câu đố vui - Đã được cập nhật với Firestore -->
+    <section id="quiz" class="section-container container mx-auto px-4 py-16 my-8 flex items-center justify-center">
+        <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-2xl card">
+            <h2 class="text-3xl font-bold text-gray-900 mb-4 text-center">Quizz Vui: Bạn Hiểu Gen Z Đến Đâu?</h2>
+            <div id="user-info" class="mb-4 text-center text-sm text-gray-500 hidden">
+                <p>ID Người dùng: <span id="user-id-display" class="font-mono"></span></p>
+            </div>
+            <div id="quiz-container" class="space-y-6">
+                <!-- Nội dung quiz sẽ được chèn vào đây bằng JavaScript -->
+            </div>
+            <div id="quiz-results" class="mt-8 p-4 bg-gray-100 rounded-lg text-center hidden">
+                <p class="text-xl font-semibold text-gray-900">Kết quả của bạn:</p>
+                <p class="text-3xl font-bold text-blue-600 mt-2"><span id="score-display">0</span>/7</p>
+                <p id="feedback-message" class="mt-4 text-lg text-gray-700"></p>
+                <div class="mt-6">
+                    <h3 class="text-xl font-bold text-gray-800">Kết quả chung của mọi người</h3>
+                    <p class="text-lg text-gray-600 mt-2">Điểm trung bình của tất cả người chơi: <span id="average-score-display" class="font-bold text-purple-600">...</span>/7</p>
+                </div>
+            </div>
+            <div class="text-center mt-6">
+                <button id="start-quiz-btn" class="bg-blue-600 text-white px-6 py-3 rounded-full text-lg font-bold hover:bg-blue-700 transition-colors duration-300 shadow-md quiz-btn">Bắt đầu Quiz</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Phần Tài liệu tham khảo (References) -->
+    <section id="references" class="section-container container mx-auto px-4 py-16 my-8">
+        <div class="bg-white p-8 rounded-lg shadow-lg card">
+            <h2 class="text-3xl font-bold text-gray-900 mb-4">Tài liệu tham khảo</h2>
+            <p class="text-gray-700 leading-relaxed text-center italic">
+                (Đang cập nhật...)
+            </p>
+        </div>
+    </section>
+
+    <!-- Phần Lời cảm ơn (Acknowledgements) và Liên hệ -->
+    <section id="acknowledgements" class="section-container container mx-auto px-4 py-16 my-8 flex items-center justify-center">
+        <div class="bg-white p-8 rounded-lg shadow-lg max-w-3xl card">
+            <h2 class="text-3xl font-bold text-gray-900 mb-4 text-center">Lời cảm ơn</h2>
+            <p class="text-gray-700 leading-relaxed mb-4">
+                Trong suốt quá trình tìm hiểu và thực hiện đề tài nghiên cứu, nhóm chúng em đã nhận được rất nhiều sự quan tâm, hỗ trợ tận tình từ các thầy cô và bạn bè. Với lòng biết ơn sâu sắc, chúng em xin gửi lời cảm ơn chân thành đến:
+            </p>
+            <p class="text-gray-700 leading-relaxed mb-4">
+                Sở Giáo dục và Đào tạo tỉnh An Giang đã tổ chức cuộc thi nghiên cứu khoa học dành cho học sinh Trung học phổ thông, giúp chúng em có 1 sân chơi ý nghĩa đồng thời có cơ hội phát triển tư duy, sáng tạo và áp dụng kiến thức vào thực tiễn.
+            </p>
+            <p class="text-gray-700 leading-relaxed mb-4">
+                Ban Giám hiệu trường THPT Châu Thị Tế đã tạo điều kiện thuận lợi cho nhóm trong suốt quá trình thực hiện đề tài. Nhà trường đã hỗ trợ triển khai kế hoạch một cách rõ ràng, cụ thể và luôn đồng hành cùng chúng em trong các bước tiến hành nghiên cứu, khảo sát tại trường.
+            </p>
+            <p class="text-gray-700 leading-relaxed mb-4">
+                Bên cạnh đó, nhóm xin gửi lời cảm ơn chân thành đến Ban Giám hiệu, quý thầy cô và các bạn học sinh của các trường:
+            </p>
+            <ul class="list-disc list-inside space-y-1 text-gray-700 pl-4 mb-4">
+                <li>Trường THPT Chuyên Thủ Khoa Nghĩa</li>
+                <li>Trường THPT Châu Thị Tế</li>
+                <li>Trường Phổ thông Dân tộc nội trú THPT An Giang</li>
+                <li>Trường THPT Nguyễn Sinh Sắc</li>
+                <li>Trường THPT Châu Phong</li>
+            </ul>
+            <p class="text-gray-700 leading-relaxed mb-4">
+                đã nhiệt tình hỗ trợ, tạo điều kiện để nhóm tiến hành khảo sát và thu thập số liệu. Sự hợp tác tích cực và tinh thần cởi mở của quý thầy cô và học sinh tại các trường là nguồn động lực quý báu, giúp nhóm có được những dữ liệu thực tế, thiết thực cho quá trình nghiên cứu.
+            </p>
+            <p class="text-gray-700 leading-relaxed mb-4">
+                Chúng em xin trân trọng cảm ơn quý thầy cô đã nhiệt tình hướng dẫn, góp ý cho nhóm trong suốt thời gian làm việc. Đặc biệt, nhóm xin gửi lời tri ân sâu sắc đến thầy Lê Thanh Long – giáo viên giảng dạy môn Địa Lý của trường – đã trực tiếp hướng dẫn, định hướng, hỗ trợ và đồng hành cùng nhóm từ những bước đầu tiên đến khi hoàn thiện đề tài. Thầy luôn nhiệt tình giúp đỡ và tạo mọi điều kiện thuận lợi cho chúng em.
+            </p>
+            <p class="text-gray-700 leading-relaxed mb-4">
+                Chúng em cũng xin cảm ơn đến gia đình và bạn bè – những người luôn bên cạnh, tiếp thêm động lực để chúng em vượt qua những khó khăn – cũng là nguồn động viên vô cùng quý giá trong suốt hành trình thực hiện đề tài.
+            </p>
+            <p class="text-gray-700 leading-relaxed mb-4">
+                Mặc dù nhóm đã cố gắng hết sức nhưng do hạn chế về kinh nghiệm và năng lực, chắc chắn đề tài vẫn còn nhiều thiếu sót. Chúng em rất mong nhận được sự thông cảm và những góp ý quý báu từ quý thầy cô để hoàn thiện đề tài tốt hơn.
+            </p>
+            <p class="text-center font-bold text-gray-700 mb-2">Chân thành cảm ơn !</p>
+            <p class="text-center text-gray-700 mb-8">
+                Châu Đốc, ngày ... tháng ... năm 2025<br>
+                Nhóm nghiên cứu
+            </p>
+            <div class="flex flex-col items-center">
+                <h3 class="text-2xl font-bold text-gray-900 mb-4">Liên hệ</h3>
+                <p class="text-gray-700">
+                    <span class="font-bold">Email:</span> <a href="mailto:chicong3399@gmail.com" class="text-blue-600 hover:underline">chicong3399@gmail.com</a>
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Chân trang (Footer) -->
+    <footer class="bg-gray-900 text-white py-8">
+        <div class="container mx-auto px-4 text-center">
+            <p>&copy; 2025 [Nguyễn Chí Công]. Bảo lưu mọi quyền.</p>
+        </div>
+    </footer>
+
+    <!-- Các scripts -->
+    <script>
+        // JavaScript để xử lý các tính năng tương tác
+
+        // Logic cuộn mượt mà
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+        
+        // Logic ẩn banner thông báo
+        document.getElementById('dismiss-banner-btn').addEventListener('click', () => {
+            document.getElementById('trial-banner').style.display = 'none';
+        });
+
+        // ===================================
+        // 1. Logic cho Chart.js (Kết quả Khảo sát)
+        // ===================================
+        document.addEventListener('DOMContentLoaded', () => {
+            // Dữ liệu biểu đồ được đặt về 0 theo yêu cầu, sẽ được cập nhật sau
+            const mockSurveyData = {
+                visualImpact: {
+                    labels: ['Màu sắc', 'Hình ảnh', 'Font chữ', 'Thiết kế bao bì'],
+                    data: [0, 0, 0, 0], 
+                    backgroundColor: ['#ef4444', '#f97316', '#eab308', '#22c55e']
+                },
+                marketingMessages: {
+                    labels: ['Quảng cáo TikTok', 'Influencers', 'Giảm giá', 'Khuyến mãi'],
+                    data: [0, 0, 0, 0], 
+                    backgroundColor: ['#3b82f6', '#8b5cf6', '#ec4899', '#f43f5e']
+                }
+            };
+
+            const visualImpactCtx = document.getElementById('visualImpactChart');
+            if (visualImpactCtx) {
+                new Chart(visualImpactCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: mockSurveyData.visualImpact.labels,
+                        datasets: [{
+                            label: 'Mức độ ảnh hưởng (%)',
+                            data: mockSurveyData.visualImpact.data,
+                            backgroundColor: mockSurveyData.visualImpact.backgroundColor,
+                            borderRadius: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                title: {
+                                    display: true,
+                                    text: 'Phần trăm'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(tooltipItem) {
+                                        return `${tooltipItem.label}: ${tooltipItem.raw}%`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            const marketingMessageCtx = document.getElementById('marketingMessageChart');
+            if (marketingMessageCtx) {
+                new Chart(marketingMessageCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: mockSurveyData.marketingMessages.labels,
+                        datasets: [{
+                            label: 'Phần trăm học sinh bị ảnh hưởng',
+                            data: mockSurveyData.marketingMessages.data,
+                            backgroundColor: mockSurveyData.marketingMessages.backgroundColor,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                        }
+                    }
+                });
+            }
+        });
+        
+        // ===================================
+        // 2. Logic cho Quiz và Firestore
+        // ===================================
+        let db, auth, userId;
+        const quizCollectionId = 'quizResults';
+        const firebaseConfig = {
+  apiKey: "AIzaSyDqkucpWa1qEPCHWWvxf_ES-mXGc7SZlqk",
+  authDomain: "nckhsmartpick.firebaseapp.com",
+  projectId: "nckhsmartpick",
+  storageBucket: "nckhsmartpick.firebasestorage.app",
+  messagingSenderId: "728228169912",
+  appId: "1:728228169912:web:559c1b4e46f784b90c4c4d",
+  measurementId: "G-T0NN9DM2T3"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+
+        const quizQuestions = [
+            { question: "1. Yếu tố nào ảnh hưởng nhiều nhất đến quyết định mua sắm của Gen Z?", options: ["Giá cả", "Chất lượng", "Người ảnh hưởng (Influencers)", "Mẫu mã"], answer: "Người ảnh hưởng (Influencers)" },
+            { question: "2. Nền tảng mạng xã hội nào Gen Z sử dụng nhiều nhất để tìm kiếm sản phẩm?", options: ["Facebook", "TikTok", "Instagram", "Zalo"], answer: "TikTok" },
+            { question: "3. Gen Z thường tìm kiếm thông tin về sản phẩm ở đâu?", options: ["Báo chí truyền thống", "Truyền hình", "Video review trên YouTube/TikTok", "Bạn bè"], answer: "Video review trên YouTube/TikTok" },
+            { question: "4. Điều gì khiến Gen Z trung thành với một thương hiệu?", options: ["Giá rẻ", "Ưu đãi", "Tính bền vững và giá trị xã hội", "Quảng cáo nhiều"], answer: "Tính bền vững và giá trị xã hội" },
+            { question: "5. Gen Z thường mua sắm qua hình thức nào nhiều nhất?", options: ["Cửa hàng truyền thống", "Sàn thương mại điện tử", "Mua trực tiếp qua mạng xã hội", "Mua qua TV"], answer: "Sàn thương mại điện tử" },
+            { question: "6. FOMO trong tiêu dùng là gì?", options: ["Mua hàng giảm giá", "Mua hàng theo trào lưu vì sợ bỏ lỡ", "Mua sắm tiết kiệm", "Mua hàng xa xỉ"], answer: "Mua hàng theo trào lưu vì sợ bỏ lỡ" },
+            { question: "7. Hành vi 'săn' các mã giảm giá, voucher phổ biến ở Gen Z thể hiện điều gì?", options: ["Không có tiền", "Thông minh tài chính", "Ít mua sắm", "Thích lãng phí"], answer: "Thông minh tài chính" }
+        ];
+
+        const quizContainer = document.getElementById('quiz-container');
+        const startQuizBtn = document.getElementById('start-quiz-btn');
+        const quizResults = document.getElementById('quiz-results');
+        const scoreDisplay = document.getElementById('score-display');
+        const feedbackMessage = document.getElementById('feedback-message');
+        const averageScoreDisplay = document.getElementById('average-score-display');
+        const userIdDisplay = document.getElementById('user-id-display');
+        const userInfoDiv = document.getElementById('user-info');
+        
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let isAuthReady = false;
+
+        async function initFirebaseAndAuth() {
+            if (Object.keys(firebaseConfig).length === 0) {
+                 console.error("Firebase config is missing. Cannot initialize Firestore.");
+                 return;
+            }
+            try {
+                const firebase = window.firebase;
+                const app = firebase.initializeApp(firebaseConfig);
+                db = firebase.getFirestore(app);
+                auth = firebase.getAuth(app);
+                
+                if (initialAuthToken) {
+                    await firebase.signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await firebase.signInAnonymously(auth);
+                }
+                
+                auth.onAuthStateChanged(user => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdDisplay.textContent = userId;
+                        userInfoDiv.classList.remove('hidden');
+                        isAuthReady = true;
+                        console.log("Firebase đã sẵn sàng. ID người dùng:", userId);
+                    } else {
+                        console.log("Người dùng chưa đăng nhập. Sẽ sử dụng ID ẩn danh.");
+                        userId = crypto.randomUUID();
+                        userIdDisplay.textContent = userId;
+                        userInfoDiv.classList.remove('hidden');
+                        isAuthReady = true;
+                    }
+                });
+            } catch (error) {
+                console.error("Lỗi khởi tạo Firebase:", error);
+            }
+        }
+
+        function renderQuestion(index) {
+            quizContainer.innerHTML = '';
+            const q = quizQuestions[index];
+            const questionElement = document.createElement('div');
+            questionElement.className = 'bg-gray-50 p-6 rounded-lg shadow-inner';
+            questionElement.innerHTML = `
+                <p class="text-lg font-semibold text-gray-800 mb-4">${q.question}</p>
+                <div class="space-y-3">
+                    ${q.options.map(option => `
+                        <label class="flex items-center space-x-3 p-3 bg-white rounded-lg shadow-sm hover:bg-blue-50 cursor-pointer transition-colors duration-200">
+                            <input type="radio" name="quiz-option" value="${option}" class="form-radio h-5 w-5 text-blue-600">
+                            <span class="text-gray-700">${option}</span>
+                        </label>
+                    `).join('')}
+                </div>
+                <p id="question-feedback" class="mt-4 text-center font-bold"></p>
+                <div class="mt-6 text-center">
+                    <button id="action-btn" class="bg-blue-600 text-white px-6 py-3 rounded-full text-lg font-bold hover:bg-blue-700 transition-colors duration-300 shadow-md quiz-btn">
+                        Kiểm tra đáp án
+                    </button>
+                </div>
+            `;
+            quizContainer.appendChild(questionElement);
+
+            const actionBtn = document.getElementById('action-btn');
+            actionBtn.addEventListener('click', () => {
+                const selectedOption = document.querySelector('input[name="quiz-option"]:checked');
+                const feedbackElement = document.getElementById('question-feedback');
+
+                if (actionBtn.textContent === "Kiểm tra đáp án") {
+                    if (selectedOption) {
+                        const isCorrect = selectedOption.value === q.answer;
+                        if (isCorrect) {
+                            score++;
+                            feedbackElement.textContent = "Đúng rồi! 🎉";
+                            feedbackElement.classList.remove('text-red-600');
+                            feedbackElement.classList.add('text-green-600');
+                        } else {
+                            feedbackElement.innerHTML = `Sai rồi. Đáp án đúng là: <span class="text-green-600">${q.answer}</span>`;
+                            feedbackElement.classList.remove('text-green-600');
+                            feedbackElement.classList.add('text-red-600');
+                        }
+                        
+                        document.querySelectorAll('input[name="quiz-option"]').forEach(radio => radio.disabled = true);
+                        actionBtn.textContent = "Tiếp theo";
+                    }
+                } else {
+                    currentQuestionIndex++;
+                    if (currentQuestionIndex < quizQuestions.length) {
+                        renderQuestion(currentQuestionIndex);
+                    } else {
+                        showResults();
+                    }
+                }
+            });
+        }
+
+        async function saveResultToFirestore() {
+            if (!isAuthReady) {
+                console.error("Firebase chưa sẵn sàng.");
+                return;
+            }
+            try {
+                const firebase = window.firebase;
+                const path = `/artifacts/${appId}/public/data/${quizCollectionId}`;
+                await firebase.addDoc(firebase.collection(db, path), {
+                    userId: userId,
+                    score: score,
+                    timestamp: firebase.serverTimestamp ? firebase.serverTimestamp() : new Date()
+                });
+                console.log("Đã lưu kết quả quiz vào Firestore.");
+            } catch (e) {
+                console.error("Lỗi khi lưu kết quả quiz:", e);
+            }
+        }
+        
+        async function fetchAverageScore() {
+            if (!isAuthReady) return;
+            try {
+                const firebase = window.firebase;
+                const path = `/artifacts/${appId}/public/data/${quizCollectionId}`;
+                const querySnapshot = await firebase.getDocs(firebase.collection(db, path));
+                
+                let totalScore = 0;
+                let playerCount = 0;
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    if (typeof data.score === 'number') {
+                        totalScore += data.score;
+                        playerCount++;
+                    }
+                });
+
+                if (playerCount > 0) {
+                    const averageScore = (totalScore / playerCount).toFixed(1);
+                    averageScoreDisplay.textContent = averageScore;
+                } else {
+                    averageScoreDisplay.textContent = "Chưa có dữ liệu";
+                }
+            } catch (e) {
+                console.error("Lỗi khi lấy điểm trung bình:", e);
+            }
+        }
+
+        function showResults() {
+            quizContainer.classList.add('hidden');
+            quizResults.classList.remove('hidden');
+            scoreDisplay.textContent = score;
+
+            if (score >= 6) {
+                feedbackMessage.textContent = "Bạn là một Gen Z có kiến thức tiêu dùng siêu đỉnh! 🎉";
+                feedbackMessage.classList.remove('text-red-700', 'text-yellow-700');
+                feedbackMessage.classList.add('text-green-700', 'font-extrabold');
+            } else if (score >= 4) {
+                feedbackMessage.textContent = "Bạn khá hiểu về thị trường đấy! 💡 Hãy khám phá thêm một chút nữa để trở thành chuyên gia nhé.";
+                feedbackMessage.classList.remove('text-red-700', 'text-green-700', 'font-extrabold');
+                feedbackMessage.classList.add('text-yellow-700');
+            } else {
+                feedbackMessage.textContent = "Đừng nản lòng! 😉 Vẫn còn nhiều điều thú vị để khám phá. Cùng đọc cẩm nang và thử lại nhé!";
+                feedbackMessage.classList.remove('text-green-700', 'text-yellow-700', 'font-extrabold');
+                feedbackMessage.classList.add('text-red-700');
+            }
+            
+            saveResultToFirestore();
+            fetchAverageScore();
+        }
+
+        startQuizBtn.addEventListener('click', () => {
+            startQuizBtn.classList.add('hidden');
+            quizContainer.classList.remove('hidden');
+            renderQuestion(currentQuestionIndex);
+        });
+
+        // Khởi tạo Firebase khi trang tải xong
+        document.addEventListener('DOMContentLoaded', initFirebaseAndAuth);
+
+
+        // ===================================
+        // 3. Logic cho hiệu ứng cuộn
+        // ===================================
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('is-visible');
+                    observer.unobserve(entry.target); // Ngừng quan sát sau khi đã hiện
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.card').forEach(card => {
+            observer.observe(card);
+        });
+
+    </script>
+    
+    <!-- Scripts cho mô hình 3D -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // Khai báo các biến global cho mô hình 3D
+        let scene, camera, renderer, can, controls;
+
+        // Hàm khởi tạo Three.js
+        function init3D() {
+            const container = document.getElementById('threed-container');
+
+            // 1. Tạo Scene (Không gian 3D)
+            scene = new THREE.Scene();
+
+            // 2. Tạo Camera (Góc nhìn)
+            camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.z = 2.5;
+
+            // 3. Tạo Renderer (Bộ dựng hình)
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(renderer.domElement);
+
+            // 4. Tạo đối tượng 3D (Lon nước dừa)
+            // Tạo canvas để vẽ texture cho lon nước
+            const canvasTexture = document.createElement('canvas');
+            canvasTexture.width = 1024;
+            canvasTexture.height = 1024;
+            const ctx = canvasTexture.getContext('2d');
+            
+            // --- Thiết kế texture mới cho lon nước dừa với đầy đủ thông tin (cập nhật) ---
+            
+            // Màu nền: Trắng hoàn toàn để tạo cảm giác tinh khiết
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, 1024, 1024);
+
+            // Vẽ một dải sóng màu xanh ngọc lam nhẹ nhàng ở đáy lon
+            ctx.fillStyle = 'rgba(0, 206, 209, 0.4)'; // Màu xanh ngọc lam nhạt
+            ctx.beginPath();
+            ctx.moveTo(0, 700);
+            ctx.bezierCurveTo(256, 650, 768, 750, 1024, 700);
+            ctx.lineTo(1024, 1024);
+            ctx.lineTo(0, 1024);
+            ctx.closePath();
+            ctx.fill();
+
+            // Logo và tên sản phẩm
+            ctx.fillStyle = '#006400'; // Màu xanh lá cây đậm
+            ctx.font = 'bold 90px Poppins';
+            ctx.textAlign = 'center';
+            ctx.fillText('Coconut Bliss', canvasTexture.width / 2, 490);
+            
+            ctx.fillStyle = '#4B5563'; // Màu xám đậm
+            ctx.font = '600 40px Poppins';
+            ctx.fillText('100% Nước Dừa Tươi', canvasTexture.width / 2, 570);
+            
+            ctx.font = '400 35px Poppins';
+            ctx.fillText('Sảng Khoái Tự Nhiên', canvasTexture.width / 2, 620);
+            
+            // Logo dừa SVG
+            const coconutSvg = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 24 24" fill="none" stroke="#008000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M7 9c1-4 5-5.5 8-2-.7 4-2.9 5.7-4 9.4-1.5 2.4-2.1 3.7-2 5.6.3 2.5-1 4.7-3 5.4-1.5-.7-3.2-1.3-4.5-3.3-.7-1.1-1.5-2.4-2-4.7-.5-2.4.7-4.5 1.9-6.4-.1-.7-.4-1.3-.9-2-.6-.8-1.5-1.4-2.4-1.8-.8-.4-1.7-.5-2.6-.2-.9.3-1.6 1-1.9 1.9-.2.8-.1 1.6.3 2.4-1.1-.5-2.7-.1-4.4 1.4-5.5 4.6-6.9 5.7-9.9 7.2l-1.2-.5c2.5-2.2 5.8-3.8 8.9-7.8z"/>
+                </svg>
+            `;
+            const img = new Image();
+            img.onload = () => {
+                const imgSize = 200;
+                ctx.drawImage(img, (1024 - imgSize) / 2, 200, imgSize, imgSize);
+                updateCanTexture();
+            };
+            img.src = 'data:image/svg+xml;base64,' + btoa(coconutSvg);
+
+            // Bổ sung thông tin sản phẩm ở mặt sau và bên hông
+            // Nơi sản xuất
+            ctx.fillStyle = '#4B5563'; // Màu xám đậm
+            ctx.font = '400 30px Poppins';
+            ctx.textAlign = 'left';
+            ctx.fillText('Sản xuất tại:', 840, 300);
+            ctx.font = '400 25px Poppins';
+            ctx.fillText('Công ty TNHH Nước Giải Khát', 840, 340);
+            ctx.fillText('Châu Đốc, An Giang, Việt Nam', 840, 370);
+
+            // Thành phần
+            ctx.font = 'bold 30px Poppins';
+            ctx.fillText('THÀNH PHẦN:', 840, 450);
+            ctx.font = '400 25px Poppins';
+            ctx.fillText('- Nước dừa tươi (99%)', 840, 490);
+            ctx.fillText('- Đường (1%)', 840, 520);
+            ctx.fillText('- Chất bảo quản tự nhiên', 840, 550);
+            ctx.fillText('Hạn sử dụng: 12 tháng', 840, 600);
+
+            // Mã vạch
+            ctx.fillStyle = 'black';
+            ctx.fillRect(850, 700, 10, 100);
+            ctx.fillRect(865, 700, 5, 100);
+            ctx.fillRect(875, 700, 10, 100);
+            ctx.fillRect(890, 700, 5, 100);
+            ctx.fillRect(900, 700, 10, 100);
+            ctx.fillRect(915, 700, 10, 100);
+            ctx.fillRect(930, 700, 5, 100);
+            ctx.fillRect(940, 700, 10, 100);
+
+            const texture = new THREE.CanvasTexture(canvasTexture);
+            const material = new THREE.MeshLambertMaterial({ map: texture });
+            
+            // Sử dụng CylinderGeometry cho lon
+            const canHeight = 2.2;
+            const canRadius = 0.8;
+            const canTopRadius = 0.75;
+            const canTopThickness = 0.1;
+            
+            const canBodyGeometry = new THREE.CylinderGeometry(canRadius, canRadius, canHeight, 64);
+            const canTopGeometry = new THREE.CylinderGeometry(canTopRadius, canRadius, canTopThickness, 64);
+            const canLidGeometry = new THREE.CylinderGeometry(canTopRadius, canTopRadius, canTopThickness / 2, 64);
+            
+            const canBody = new THREE.Mesh(canBodyGeometry, material);
+            const canTop = new THREE.Mesh(canTopGeometry, new THREE.MeshLambertMaterial({color: 0xc0c0c0}));
+            const canLid = new THREE.Mesh(canLidGeometry, new THREE.MeshLambertMaterial({color: 0xa0a0a0}));
+
+            canTop.position.y = canHeight / 2;
+            canLid.position.y = canHeight / 2 + canTopThickness / 2;
+            
+            can = new THREE.Group();
+            can.add(canBody);
+            can.add(canTop);
+            can.add(canLid);
+            
+            scene.add(can);
+            
+            // 5. Thêm ánh sáng
+            const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+            scene.add(hemisphereLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(5, 10, 7.5);
+            scene.add(directionalLight);
+
+            // 6. Thêm Controls để xoay mô hình
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.rotateSpeed = 0.5;
+            controls.maxPolarAngle = Math.PI / 2;
+
+            // Xử lý sự kiện khi thay đổi kích thước cửa sổ
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        function updateCanTexture() {
+            // Cập nhật lại texture sau khi hình ảnh dừa được tải
+            if (can && can.children.length > 0) {
+                const bodyMesh = can.children[0];
+                if (bodyMesh) {
+                    bodyMesh.material.map.needsUpdate = true;
+                }
+            }
+        }
+
+        // Hàm xử lý khi thay đổi kích thước cửa sổ
+        function onWindowResize() {
+            const container = document.getElementById('threed-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        // Vòng lặp chính để render scene
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Chờ trang tải xong thì khởi tạo và chạy
+        window.onload = function() {
+            // Khởi tạo các script của trang web
+            const event = new Event('DOMContentLoaded');
+            document.dispatchEvent(event);
+
+            // Khởi tạo và chạy mô hình 3D
+            init3D();
+            animate();
+        };
+    </script>
+
+</body>
+</html>
